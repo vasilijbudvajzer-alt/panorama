@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Дворцовая площадь начало ХХ века</title>
     
-    <!-- Pannellum CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
     
     <style>
@@ -44,23 +43,70 @@
     <div id="panorama-container"></div>
     <div id="map-container"></div>
 
-    <!-- Pannellum JS -->
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
-    <!-- Yandex Maps API -->
     <script src="https://api-maps.yandex.ru/2.1/?apikey=84244e44-246b-436a-ab06-6c6485221085&lang=ru_RU" type="text/javascript"></script>
 
     <script>
         const CONFIG = {
             imageUrl: 'итог.jpg',
             coords: [59.9396257, 30.31746454],
-            northOffset: -60,  // Направление (исправлено)
+            northOffset: -60,
             horizonPitch: 5,
             markerTitle: 'Дворцовая площадь начало ХХ века',
             hfov: 100
         };
 
-        // 1. Инициализация панорамы
-        pannellum.viewer('panorama-container', {
+        let viewer = null;
+        let panoramaPlacemark = null;
+        let lastYaw = 0;
+        let isRotating = false;
+        let rotationTimeout = null;
+
+        // Генерация SVG иконки
+        function createIconSvg(direction) {
+            const svg = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+                    <path d="M 32 32 L 32 8 A 24 24 0 0 1 52.78 20 Z" 
+                          fill="rgba(128, 128, 128, 0.4)" 
+                          stroke="rgba(128, 128, 128, 0.6)" 
+                          stroke-width="1"
+                          transform="rotate(${direction}, 32, 32)"/>
+                    <g transform="rotate(${direction}, 32, 32)">
+                        <circle cx="26" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
+                        <circle cx="26" cy="32" r="4" fill="white"/>
+                        <circle cx="38" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
+                        <circle cx="38" cy="32" r="4" fill="white"/>
+                        <rect x="26" y="30" width="12" height="4" fill="#2D8CFF"/>
+                    </g>
+                    <circle cx="32" cy="32" r="3" fill="#2D8CFF" stroke="white" stroke-width="1.5"/>
+                </svg>
+            `;
+            return 'image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        }
+
+        // Обновление поворота метки
+        function updateMarkerRotation() {
+            if (!viewer || !panoramaPlacemark) return;
+            
+            const currentYaw = viewer.getYaw();
+            
+            // Обновляем только если угол изменился значительно
+            if (Math.abs(currentYaw - lastYaw) > 2) {
+                lastYaw = currentYaw;
+                
+                // Общий поворот = текущий yaw + смещение севера
+                const totalRotation = currentYaw + CONFIG.northOffset;
+                
+                // Обновляем иконку
+                panoramaPlacemark.options.set('iconImageHref', createIconSvg(totalRotation));
+            }
+            
+            // Продолжаем мониторинг
+            rotationTimeout = setTimeout(updateMarkerRotation, 150);
+        }
+
+        // Инициализация панорамы
+        viewer = pannellum.viewer('panorama-container', {
             "type": "equirectangular",
             "panorama": CONFIG.imageUrl,
             "autoLoad": true,
@@ -72,37 +118,14 @@
             "title": CONFIG.markerTitle,
             "yaw": 0,
             "pitch": 0,
-            "hfov": CONFIG.hfov
+            "hfov": CONFIG.hfov,
+            // Событие начала вращения
+            "onSceneChange": function() {
+                isRotating = true;
+            }
         });
 
-        // 2. Генерация SVG иконки (Бинокль + Сектор)
-        function createIconSvg(direction) {
-            const svg = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-                    <!-- Сектор обзора (серый) -->
-                    <path d="M 32 32 L 32 8 A 24 24 0 0 1 52.78 20 Z" 
-                          fill="rgba(128, 128, 128, 0.4)" 
-                          stroke="rgba(128, 128, 128, 0.6)" 
-                          stroke-width="1"
-                          transform="rotate(${direction}, 32, 32)"/>
-                    
-                    <!-- Бинокль (синий) -->
-                    <g transform="rotate(${direction}, 32, 32)">
-                        <circle cx="26" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
-                        <circle cx="26" cy="32" r="4" fill="white"/>
-                        <circle cx="38" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
-                        <circle cx="38" cy="32" r="4" fill="white"/>
-                        <rect x="26" y="30" width="12" height="4" fill="#2D8CFF"/>
-                    </g>
-                    
-                    <!-- Центр -->
-                    <circle cx="32" cy="32" r="3" fill="#2D8CFF" stroke="white" stroke-width="1.5"/>
-                </svg>
-            `;
-            return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-        }
-
-        // 3. Инициализация карты
+        // Инициализация карты
         ymaps.ready(init);
 
         function init(){
@@ -113,10 +136,10 @@
             });
 
             // Создаем метку
-            const panoramaPlacemark = new ymaps.Placemark(CONFIG.coords, {
+            panoramaPlacemark = new ymaps.Placemark(CONFIG.coords, {
                 hintContent: CONFIG.markerTitle,
                 balloonContentHeader: CONFIG.markerTitle,
-                balloonContentBody: `Направление: ${CONFIG.northOffset}°<br>Угол обзора: ${CONFIG.hfov}°`
+                balloonContentBody: `Направление: ${CONFIG.northOffset}°<br>Угол обзора: ${CONFIG.hfov}°<br><small>Сектор поворачивается при просмотре</small>`
             }, {
                 iconLayout: 'default#image',
                 iconImageHref: createIconSvg(CONFIG.northOffset),
@@ -132,10 +155,13 @@
                 if (!myMap.balloon.isOpen()) panoramaPlacemark.balloon.open();
             });
 
-            // Умный зум (чтобы не мешал панораме)
+            // Умный зум
             myMap.behaviors.disable('scrollZoom');
             myMap.events.add('mouseenter', () => myMap.behaviors.enable('scrollZoom'));
             myMap.events.add('mouseleave', () => myMap.behaviors.disable('scrollZoom'));
+
+            // Запускаем синхронизацию после загрузки панорамы
+            setTimeout(updateMarkerRotation, 1000);
         }
     </script>
 </body>
