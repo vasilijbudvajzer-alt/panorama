@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Дворцовая площадь начало ХХ века</title>
     
+    <!-- Pannellum CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
     
     <style>
@@ -20,14 +21,12 @@
         #panorama-container {
             width: 100%;
             height: 60vh;
-            position: relative;
             background: #333;
         }
 
         #map-container {
             width: 100%;
             height: 40vh;
-            position: relative;
         }
         
         .pannellum-container {
@@ -36,8 +35,7 @@
         }
 
         @media (max-width: 768px) {
-            #panorama-container { height: 50vh; }
-            #map-container { height: 50vh; }
+            #panorama-container, #map-container { height: 50vh; }
         }
     </style>
 </head>
@@ -46,20 +44,22 @@
     <div id="panorama-container"></div>
     <div id="map-container"></div>
 
+    <!-- Pannellum JS -->
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+    <!-- Yandex Maps API -->
     <script src="https://api-maps.yandex.ru/2.1/?apikey=84244e44-246b-436a-ab06-6c6485221085&lang=ru_RU" type="text/javascript"></script>
 
     <script>
         const CONFIG = {
             imageUrl: 'итог.jpg',
             coords: [59.9396257, 30.31746454],
-            northOffset: -60,  // ИСПРАВЛЕНО: было 60
+            northOffset: -60,  // Направление (исправлено)
             horizonPitch: 5,
             markerTitle: 'Дворцовая площадь начало ХХ века',
             hfov: 100
         };
 
-        // Инициализация панорамы
+        // 1. Инициализация панорамы
         pannellum.viewer('panorama-container', {
             "type": "equirectangular",
             "panorama": CONFIG.imageUrl,
@@ -70,120 +70,72 @@
             "showZoomCtrl": true,
             "showFullscreenCtrl": true,
             "title": CONFIG.markerTitle,
-            "author": "Исторический архив",
             "yaw": 0,
             "pitch": 0,
             "hfov": CONFIG.hfov
         });
 
-        // Функция создания сектора обзора
-        function createViewSector(center, direction, fov, radius) {
-            const startAngle = (direction - fov / 2) * Math.PI / 180;
-            const endAngle = (direction + fov / 2) * Math.PI / 180;
-            const points = [center.slice()];
-            
-            const steps = 20;
-            for (let i = 0; i <= steps; i++) {
-                const angle = startAngle + (endAngle - startAngle) * i / steps;
-                const lat = center[0] + radius * Math.cos(angle) / 111320;
-                const lon = center[1] + radius * Math.sin(angle) / (111320 * Math.cos(center[0] * Math.PI / 180));
-                points.push([lat, lon]);
-            }
-            
-            points.push(center.slice());
-            return points;
+        // 2. Генерация SVG иконки (Бинокль + Сектор)
+        function createIconSvg(direction) {
+            const svg = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+                    <!-- Сектор обзора (серый) -->
+                    <path d="M 32 32 L 32 8 A 24 24 0 0 1 52.78 20 Z" 
+                          fill="rgba(128, 128, 128, 0.4)" 
+                          stroke="rgba(128, 128, 128, 0.6)" 
+                          stroke-width="1"
+                          transform="rotate(${direction}, 32, 32)"/>
+                    
+                    <!-- Бинокль (синий) -->
+                    <g transform="rotate(${direction}, 32, 32)">
+                        <circle cx="26" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
+                        <circle cx="26" cy="32" r="4" fill="white"/>
+                        <circle cx="38" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
+                        <circle cx="38" cy="32" r="4" fill="white"/>
+                        <rect x="26" y="30" width="12" height="4" fill="#2D8CFF"/>
+                    </g>
+                    
+                    <!-- Центр -->
+                    <circle cx="32" cy="32" r="3" fill="#2D8CFF" stroke="white" stroke-width="1.5"/>
+                </svg>
+            `;
+            return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
         }
 
+        // 3. Инициализация карты
         ymaps.ready(init);
 
         function init(){
             var myMap = new ymaps.Map("map-container", {
                 center: CONFIG.coords,
                 zoom: 17,
-                controls: ['zoomControl', 'fullscreenControl', 'typeSelector']
+                controls: ['zoomControl', 'fullscreenControl']
             });
-
-            // ИСПРАВЛЕНО: радиус сектора уменьшен в 3 раза (было 100)
-            const sectorRadius = 33; // метров (вместо 100)
-            const sectorPoints = createViewSector(CONFIG.coords, CONFIG.northOffset, CONFIG.hfov, sectorRadius);
-            
-            const viewSector = new ymaps.Polygon([sectorPoints], {}, {
-                fillColor: "#3399FF40",
-                strokeColor: "#3399FF",
-                strokeWidth: 2,
-                opacity: 0.7
-            });
-
-            // Создаем SVG иконку с биноклем
-            const createBinocularsIcon = () => {
-                const svg = `
-                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-                        <!-- Сектор обзора -->
-                        <path d="M 32 32 L 32 8 A 24 24 0 0 1 52.78 20 Z" 
-                              fill="rgba(128, 128, 128, 0.4)" 
-                              stroke="rgba(128, 128, 128, 0.6)" 
-                              stroke-width="1"
-                              transform="rotate(-60, 32, 32)"/>
-                        
-                        <!-- Бинокль -->
-                        <g transform="rotate(-60, 32, 32)">
-                            <!-- Левый окуляр -->
-                            <circle cx="26" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
-                            <circle cx="26" cy="32" r="4" fill="white"/>
-                            
-                            <!-- Правый окуляр -->
-                            <circle cx="38" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
-                            <circle cx="38" cy="32" r="4" fill="white"/>
-                            
-                            <!-- Перемычка -->
-                            <rect x="26" y="30" width="12" height="4" fill="#2D8CFF"/>
-                        </g>
-                        
-                        <!-- Центральная точка -->
-                        <circle cx="32" cy="32" r="3" fill="#2D8CFF" stroke="white" stroke-width="1.5"/>
-                    </svg>
-                `;
-                
-                return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-            };
 
             // Создаем метку
             const panoramaPlacemark = new ymaps.Placemark(CONFIG.coords, {
                 hintContent: CONFIG.markerTitle,
                 balloonContentHeader: CONFIG.markerTitle,
-                balloonContentBody: `Историческая панорама Дворцовой площади, начало XX века.<br>Направление съёмки: ${CONFIG.northOffset}°<br>Угол обзора: ${CONFIG.hfov}°`,
-                balloonContentFooter: 'Кликните для подробностей'
+                balloonContentBody: `Направление: ${CONFIG.northOffset}°<br>Угол обзора: ${CONFIG.hfov}°`
             }, {
                 iconLayout: 'default#image',
-                iconImageHref: createBinocularsIcon(),
+                iconImageHref: createIconSvg(CONFIG.northOffset),
                 iconImageSize: [64, 64],
                 iconImageOffset: [-32, -32],
-                iconShape: {
-                    type: 'Circle',
-                    coordinates: [0, 0],
-                    radius: 32
-                }
+                iconShape: { type: 'Circle', coordinates: [0, 0], radius: 32 }
             });
 
-            // Добавляем объекты на карту
-            myMap.geoObjects.add(viewSector);
             myMap.geoObjects.add(panoramaPlacemark);
 
             // Клик по метке
-            panoramaPlacemark.events.add('click', function(e) {
-                if (!myMap.balloon.isOpen()) {
-                    panoramaPlacemark.balloon.open();
-                }
+            panoramaPlacemark.events.add('click', function() {
+                if (!myMap.balloon.isOpen()) panoramaPlacemark.balloon.open();
             });
 
-            // Управление зумом
+            // Умный зум (чтобы не мешал панораме)
             myMap.behaviors.disable('scrollZoom');
-            myMap.events.add('mouseenter', function() {
-                myMap.behaviors.enable('scrollZoom');
-            });
-            myMap.events.add('mouseleave', function() {
-                myMap.behaviors.disable('scrollZoom');
-            });
+            myMap.events.add('mouseenter', () => myMap.behaviors.enable('scrollZoom'));
+            myMap.events.add('mouseleave', () => myMap.behaviors.disable('scrollZoom'));
         }
     </script>
 </body>
