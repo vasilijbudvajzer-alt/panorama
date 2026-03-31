@@ -59,8 +59,6 @@
         let viewer = null;
         let panoramaPlacemark = null;
         let lastYaw = 0;
-        let isRotating = false;
-        let rotationTimeout = null;
 
         // Генерация SVG иконки
         function createIconSvg(direction) {
@@ -93,42 +91,16 @@
             // Обновляем только если угол изменился значительно
             if (Math.abs(currentYaw - lastYaw) > 2) {
                 lastYaw = currentYaw;
-                
-                // Общий поворот = текущий yaw + смещение севера
                 const totalRotation = currentYaw + CONFIG.northOffset;
-                
-                // Обновляем иконку
                 panoramaPlacemark.options.set('iconImageHref', createIconSvg(totalRotation));
             }
             
             // Продолжаем мониторинг
-            rotationTimeout = setTimeout(updateMarkerRotation, 150);
+            setTimeout(updateMarkerRotation, 150);
         }
 
-        // Инициализация панорамы
-        viewer = pannellum.viewer('panorama-container', {
-            "type": "equirectangular",
-            "panorama": CONFIG.imageUrl,
-            "autoLoad": true,
-            "northOffset": CONFIG.northOffset,
-            "horizonPitch": CONFIG.horizonPitch,
-            "compass": true,
-            "showZoomCtrl": true,
-            "showFullscreenCtrl": true,
-            "title": CONFIG.markerTitle,
-            "yaw": 0,
-            "pitch": 0,
-            "hfov": CONFIG.hfov,
-            // Событие начала вращения
-            "onSceneChange": function() {
-                isRotating = true;
-            }
-        });
-
         // Инициализация карты
-        ymaps.ready(init);
-
-        function init(){
+        ymaps.ready(function(){
             var myMap = new ymaps.Map("map-container", {
                 center: CONFIG.coords,
                 zoom: 17,
@@ -139,7 +111,7 @@
             panoramaPlacemark = new ymaps.Placemark(CONFIG.coords, {
                 hintContent: CONFIG.markerTitle,
                 balloonContentHeader: CONFIG.markerTitle,
-                balloonContentBody: `Направление: ${CONFIG.northOffset}°<br>Угол обзора: ${CONFIG.hfov}°<br><small>Сектор поворачивается при просмотре</small>`
+                balloonContentBody: `Направление: ${CONFIG.northOffset}°<br>Угол обзора: ${CONFIG.hfov}°`
             }, {
                 iconLayout: 'default#image',
                 iconImageHref: createIconSvg(CONFIG.northOffset),
@@ -159,10 +131,27 @@
             myMap.behaviors.disable('scrollZoom');
             myMap.events.add('mouseenter', () => myMap.behaviors.enable('scrollZoom'));
             myMap.events.add('mouseleave', () => myMap.behaviors.disable('scrollZoom'));
+        });
 
-            // Запускаем синхронизацию после загрузки панорамы
-            setTimeout(updateMarkerRotation, 1000);
-        }
+        // Инициализация панорамы
+        viewer = pannellum.viewer('panorama-container', {
+            "type": "equirectangular",
+            "panorama": CONFIG.imageUrl,
+            "autoLoad": true,
+            "northOffset": CONFIG.northOffset,
+            "horizonPitch": CONFIG.horizonPitch,
+            "compass": true,
+            "showZoomCtrl": true,
+            "showFullscreenCtrl": true,
+            "title": CONFIG.markerTitle,
+            "yaw": 0,
+            "pitch": 0,
+            "hfov": CONFIG.hfov,
+            // Запускаем синхронизацию после загрузки
+            "load": function() {
+                setTimeout(updateMarkerRotation, 500);
+            }
+        });
     </script>
 </body>
 </html>
