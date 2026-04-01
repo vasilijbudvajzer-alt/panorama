@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Дворцовая площадь начало ХХ века</title>
+    <title>Дворцовая площадь 1904 — 2026</title>
     
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
     
@@ -12,7 +12,7 @@
             margin: 0;
             padding: 0;
             height: 100%;
-            font-family: sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             display: flex;
             flex-direction: column;
         }
@@ -21,6 +21,7 @@
             width: 100%;
             height: 60vh;
             background: #333;
+            position: relative;
         }
 
         #map-container {
@@ -33,14 +34,110 @@
             height: 100% !important;
         }
 
+        /* Переключатель панорам (стиль Яндекс.Панорам) */
+        .time-slider-container {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.75);
+            border-radius: 30px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .time-label {
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            min-width: 50px;
+            text-align: center;
+            transition: opacity 0.3s;
+        }
+
+        .time-label.inactive {
+            opacity: 0.5;
+        }
+
+        .time-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 200px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .time-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            background: #2D8CFF;
+            border: 3px solid white;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+        }
+
+        .time-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        .time-slider::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            background: #2D8CFF;
+            border: 3px solid white;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .year-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            transition: opacity 0.3s;
+        }
+
         @media (max-width: 768px) {
             #panorama-container, #map-container { height: 50vh; }
+            .time-slider { width: 150px; }
+            .time-slider-container { bottom: 15px; padding: 6px 10px; }
         }
     </style>
 </head>
 <body>
 
-    <div id="panorama-container"></div>
+    <div id="panorama-container">
+        <!-- Переключатель времени -->
+        <div class="time-slider-container">
+            <span class="time-label inactive" id="label-history">1904</span>
+            <input type="range" min="0" max="1" value="1" class="time-slider" id="timeSlider">
+            <span class="time-label" id="label-today">2026</span>
+        </div>
+        
+        <!-- Бейдж текущего года -->
+        <div class="year-badge" id="yearBadge">2026</div>
+    </div>
+    
     <div id="map-container"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
@@ -48,43 +145,49 @@
 
     <script>
         const CONFIG = {
-            imageUrl: 'итог.jpg',
+            todayUrl: 'today.jpg',
+            historyUrl: 'history.jpg',
             coords: [59.9396257, 30.31746454],
             northOffset: -60,
             horizonPitch: 5,
-            markerTitle: 'Дворцовая площадь начало ХХ века',
+            markerTitle: 'Дворцовая площадь',
             hfov: 100
         };
 
         let viewer = null;
         let panoramaPlacemark = null;
+        let myMap = null;
         let lastYaw = 0;
+        let currentYear = 2026;
+        let isHistorical = false;
 
-        // Генерация SVG иконки (бинокль + сектор)
+        // Генерация SVG иконки
         function createIconSvg(direction) {
-            const svg = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-                    <path d="M 32 32 L 32 8 A 24 24 0 0 1 52.78 20 Z" 
-                          fill="rgba(128, 128, 128, 0.4)" 
-                          stroke="rgba(128, 128, 128, 0.6)" 
-                          stroke-width="1"
-                          transform="rotate(${direction}, 32, 32)"/>
-                    <g transform="rotate(${direction}, 32, 32)">
-                        <circle cx="26" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
-                        <circle cx="26" cy="32" r="4" fill="white"/>
-                        <circle cx="38" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
-                        <circle cx="38" cy="32" r="4" fill="white"/>
-                        <rect x="26" y="30" width="12" height="4" fill="#2D8CFF"/>
-                    </g>
-                    <circle cx="32" cy="32" r="3" fill="#2D8CFF" stroke="white" stroke-width="1.5"/>
-                </svg>
-            `;
-            return 'image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+            const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+                <path d="M 32 32 L 32 8 A 24 24 0 0 1 52.78 20 Z" 
+                      fill="rgba(128, 128, 128, 0.4)" 
+                      stroke="rgba(128, 128, 128, 0.6)" 
+                      stroke-width="1"
+                      transform="rotate(${direction}, 32, 32)"/>
+                <g transform="rotate(${direction}, 32, 32)">
+                    <circle cx="26" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
+                    <circle cx="26" cy="32" r="4" fill="white"/>
+                    <circle cx="38" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
+                    <circle cx="38" cy="32" r="4" fill="white"/>
+                    <rect x="26" y="30" width="12" height="4" fill="#2D8CFF"/>
+                </g>
+                <circle cx="32" cy="32" r="3" fill="#2D8CFF" stroke="white" stroke-width="1.5"/>
+            </svg>`;
+            
+            return 'image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
         }
 
-        // Обновление поворота метки при вращении панорамы
+        // Обновление поворота метки
         function updateMarkerRotation() {
-            if (!viewer || !panoramaPlacemark) return;
+            if (!viewer || !panoramaPlacemark) {
+                setTimeout(updateMarkerRotation, 150);
+                return;
+            }
             
             const currentYaw = viewer.getYaw();
             
@@ -97,41 +200,106 @@
             setTimeout(updateMarkerRotation, 150);
         }
 
+        // Переключение панорамы
+        function switchPanorama(toHistory) {
+            isHistorical = toHistory;
+            currentYear = toHistory ? 1904 : 2026;
+            
+            // Обновляем UI
+            document.getElementById('yearBadge').textContent = currentYear;
+            document.getElementById('label-history').classList.toggle('inactive', !toHistory);
+            document.getElementById('label-today').classList.toggle('inactive', toHistory);
+            document.getElementById('timeSlider').value = toHistory ? 0 : 1;
+            
+            // Обновляем балун метки
+            if (panoramaPlacemark) {
+                panoramaPlacemark.properties.set('balloonContentBody', 
+                    `Дворцовая площадь, ${currentYear} год<br>Направление: ${CONFIG.northOffset}°`
+                );
+            }
+            
+            // Пересоздаём панораму с новым изображением
+            if (viewer) {
+                viewer.destroy();
+            }
+            
+            viewer = pannellum.viewer('panorama-container', {
+                "type": "equirectangular",
+                "panorama": toHistory ? CONFIG.historyUrl : CONFIG.todayUrl,
+                "autoLoad": true,
+                "northOffset": CONFIG.northOffset,
+                "horizonPitch": CONFIG.horizonPitch,
+                "compass": true,
+                "showZoomCtrl": true,
+                "showFullscreenCtrl": true,
+                "title": CONFIG.markerTitle,
+                "yaw": 0,
+                "pitch": 0,
+                "hfov": CONFIG.hfov,
+                "load": function() {
+                    console.log(`Panorama loaded: ${currentYear}`);
+                },
+                "error": function(e) {
+                    console.error('Panorama load error:', e);
+                }
+            });
+        }
+
         // Инициализация карты
         ymaps.ready(function(){
-            var myMap = new ymaps.Map("map-container", {
-                center: CONFIG.coords,
-                zoom: 17,
-                controls: ['zoomControl', 'fullscreenControl']
-            });
+            console.log('Yandex Maps API loaded');
+            
+            try {
+                myMap = new ymaps.Map("map-container", {
+                    center: CONFIG.coords,
+                    zoom: 17,
+                    controls: ['zoomControl', 'fullscreenControl']
+                });
+                
+                console.log('Map created:', myMap);
 
-            panoramaPlacemark = new ymaps.Placemark(CONFIG.coords, {
-                hintContent: CONFIG.markerTitle,
-                balloonContentHeader: CONFIG.markerTitle,
-                balloonContentBody: `Направление: ${CONFIG.northOffset}°<br>Угол обзора: ${CONFIG.hfov}°<br><small>Сектор поворачивается при просмотре</small>`
-            }, {
-                iconLayout: 'default#image',
-                iconImageHref: createIconSvg(CONFIG.northOffset),
-                iconImageSize: [64, 64],
-                iconImageOffset: [-32, -32],
-                iconShape: { type: 'Circle', coordinates: [0, 0], radius: 32 }
-            });
+                panoramaPlacemark = new ymaps.Placemark(CONFIG.coords, {
+                    hintContent: CONFIG.markerTitle,
+                    balloonContentHeader: CONFIG.markerTitle,
+                    balloonContentBody: `Дворцовая площадь, ${currentYear} год<br>Направление: ${CONFIG.northOffset}°`
+                }, {
+                    iconLayout: 'default#image',
+                    iconImageHref: createIconSvg(CONFIG.northOffset),
+                    iconImageSize: [64, 64],
+                    iconImageOffset: [-32, -32]
+                });
 
-            myMap.geoObjects.add(panoramaPlacemark);
+                console.log('Placemark created:', panoramaPlacemark);
+                myMap.geoObjects.add(panoramaPlacemark);
+                console.log('Placemark added to map');
 
-            panoramaPlacemark.events.add('click', function() {
-                if (!myMap.balloon.isOpen()) panoramaPlacemark.balloon.open();
-            });
+                panoramaPlacemark.events.add('click', function() {
+                    if (!myMap.balloon.isOpen()) {
+                        panoramaPlacemark.balloon.open();
+                    }
+                });
 
-            myMap.behaviors.disable('scrollZoom');
-            myMap.events.add('mouseenter', () => myMap.behaviors.enable('scrollZoom'));
-            myMap.events.add('mouseleave', () => myMap.behaviors.disable('scrollZoom'));
+                myMap.behaviors.disable('scrollZoom');
+                myMap.events.add('mouseenter', () => myMap.behaviors.enable('scrollZoom'));
+                myMap.events.add('mouseleave', () => myMap.behaviors.disable('scrollZoom'));
+                
+            } catch (e) {
+                console.error('Map initialization error:', e);
+            }
         });
 
-        // Инициализация панорамы
+        // Инициализация переключателя
+        document.getElementById('timeSlider').addEventListener('input', function(e) {
+            const toHistory = e.target.value == 0;
+            if (toHistory !== isHistorical) {
+                switchPanorama(toHistory);
+            }
+        });
+
+        // Инициализация панорамы (по умолчанию современная)
         viewer = pannellum.viewer('panorama-container', {
             "type": "equirectangular",
-            "panorama": CONFIG.imageUrl,
+            "panorama": CONFIG.todayUrl,
             "autoLoad": true,
             "northOffset": CONFIG.northOffset,
             "horizonPitch": CONFIG.horizonPitch,
@@ -143,7 +311,11 @@
             "pitch": 0,
             "hfov": CONFIG.hfov,
             "load": function() {
+                console.log('Initial panorama loaded (2026)');
                 setTimeout(updateMarkerRotation, 500);
+            },
+            "error": function(e) {
+                console.error('Panorama load error:', e);
             }
         });
     </script>
