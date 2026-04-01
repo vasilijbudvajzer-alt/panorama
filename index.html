@@ -34,108 +34,154 @@
             height: 100% !important;
         }
 
-        /* Переключатель панорам (стиль Яндекс.Панорам) */
-        .time-slider-container {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 100;
-            background: rgba(0, 0, 0, 0.75);
-            border-radius: 30px;
-            padding: 8px 12px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-        }
-
-        .time-label {
-            color: white;
-            font-size: 14px;
-            font-weight: 600;
-            min-width: 50px;
-            text-align: center;
-            transition: opacity 0.3s;
-        }
-
-        .time-label.inactive {
-            opacity: 0.5;
-        }
-
-        .time-slider {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 200px;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 3px;
-            outline: none;
-            cursor: pointer;
-        }
-
-        .time-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 24px;
-            height: 24px;
-            background: #2D8CFF;
-            border: 3px solid white;
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-            transition: transform 0.2s;
-        }
-
-        .time-slider::-webkit-slider-thumb:hover {
-            transform: scale(1.1);
-        }
-
-        .time-slider::-moz-range-thumb {
-            width: 24px;
-            height: 24px;
-            background: #2D8CFF;
-            border: 3px solid white;
-            border-radius: 50%;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-        }
-
-        .year-badge {
+        /* Переключатель лет (стиль Яндекс.Панорам) */
+        .year-selector {
             position: absolute;
             top: 20px;
             right: 20px;
+            z-index: 100;
+        }
+
+        /* Пульсирующий глоу */
+        .year-glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: calc(100% + 20px);
+            height: calc(100% + 20px);
+            background: radial-gradient(circle, rgba(45, 140, 255, 0.4) 0%, transparent 70%);
+            border-radius: 25px;
+            animation: pulse-glow 2s ease-in-out infinite;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% {
+                opacity: 0.4;
+                transform: translate(-50%, -50%) scale(0.95);
+            }
+            50% {
+                opacity: 0.8;
+                transform: translate(-50%, -50%) scale(1.05);
+            }
+        }
+
+        .year-button {
             background: rgba(0, 0, 0, 0.75);
             color: white;
-            padding: 8px 16px;
+            border: none;
+            padding: 10px 20px;
             border-radius: 20px;
             font-size: 14px;
             font-weight: 600;
-            z-index: 100;
+            cursor: pointer;
             backdrop-filter: blur(10px);
-            transition: opacity 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            transition: background 0.2s, transform 0.2s;
+            position: relative;
+            z-index: 1;
+        }
+
+        .year-button:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: scale(1.02);
+        }
+
+        .year-button.active {
+            background: rgba(45, 140, 255, 0.9);
+        }
+
+        .year-button::after {
+            content: '▼';
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+
+        .year-button.dropdown-open::after {
+            transform: rotate(180deg);
+        }
+
+        .year-dropdown {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            min-width: 150px;
+            display: none;
+            overflow: hidden;
+            animation: slideDown 0.2s ease;
+            z-index: 101;
+        }
+
+        .year-dropdown.show {
+            display: block;
+        }
+
+        .year-option {
+            padding: 12px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            transition: background 0.2s, color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .year-option:hover {
+            background: #f5f5f5;
+        }
+
+        .year-option.active {
+            background: #e3f2fd;
+            color: #2D8CFF;
+            font-weight: 600;
+        }
+
+        .year-option.active::after {
+            content: '✓';
+            color: #2D8CFF;
+            font-weight: bold;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         @media (max-width: 768px) {
             #panorama-container, #map-container { height: 50vh; }
-            .time-slider { width: 150px; }
-            .time-slider-container { bottom: 15px; padding: 6px 10px; }
+            .year-selector { top: 15px; right: 15px; }
+            .year-glow { width: calc(100% + 15px); height: calc(100% + 15px); }
         }
     </style>
 </head>
 <body>
 
     <div id="panorama-container">
-        <!-- Переключатель времени -->
-        <div class="time-slider-container">
-            <span class="time-label inactive" id="label-history">1904</span>
-            <input type="range" min="0" max="1" value="1" class="time-slider" id="timeSlider">
-            <span class="time-label" id="label-today">2026</span>
+        <!-- Переключатель лет -->
+        <div class="year-selector">
+            <div class="year-glow"></div>
+            <button class="year-button" id="yearButton" onclick="toggleDropdown()">2026</button>
+            <div class="year-dropdown" id="yearDropdown">
+                <div class="year-option active" data-year="2026" onclick="selectYear(2026)">2026</div>
+                <div class="year-option" data-year="1904" onclick="selectYear(1904)">1904</div>
+            </div>
         </div>
-        
-        <!-- Бейдж текущего года -->
-        <div class="year-badge" id="yearBadge">2026</div>
     </div>
     
     <div id="map-container"></div>
@@ -159,11 +205,10 @@
         let myMap = null;
         let lastYaw = 0;
         let currentYear = 2026;
-        let isHistorical = false;
 
-        // Генерация SVG иконки
-        function createIconSvg(direction) {
-            const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+        // Генерация SVG иконки как base64
+        function getIconSvg(direction) {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
                 <path d="M 32 32 L 32 8 A 24 24 0 0 1 52.78 20 Z" 
                       fill="rgba(128, 128, 128, 0.4)" 
                       stroke="rgba(128, 128, 128, 0.6)" 
@@ -179,7 +224,7 @@
                 <circle cx="32" cy="32" r="3" fill="#2D8CFF" stroke="white" stroke-width="1.5"/>
             </svg>`;
             
-            return 'image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
+            return 'image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
         }
 
         // Обновление поворота метки
@@ -194,38 +239,32 @@
             if (Math.abs(currentYaw - lastYaw) > 2) {
                 lastYaw = currentYaw;
                 const totalRotation = currentYaw + CONFIG.northOffset;
-                panoramaPlacemark.options.set('iconImageHref', createIconSvg(totalRotation));
+                panoramaPlacemark.options.set('iconImageHref', getIconSvg(totalRotation));
             }
             
             setTimeout(updateMarkerRotation, 150);
         }
 
         // Переключение панорамы
-        function switchPanorama(toHistory) {
-            isHistorical = toHistory;
-            currentYear = toHistory ? 1904 : 2026;
-            
-            // Обновляем UI
-            document.getElementById('yearBadge').textContent = currentYear;
-            document.getElementById('label-history').classList.toggle('inactive', !toHistory);
-            document.getElementById('label-today').classList.toggle('inactive', toHistory);
-            document.getElementById('timeSlider').value = toHistory ? 0 : 1;
+        function switchPanorama(year) {
+            currentYear = year;
+            const isHistory = year === 1904;
             
             // Обновляем балун метки
             if (panoramaPlacemark) {
                 panoramaPlacemark.properties.set('balloonContentBody', 
-                    `Дворцовая площадь, ${currentYear} год<br>Направление: ${CONFIG.northOffset}°`
+                    `Дворцовая площадь, ${year} год<br>Направление: ${CONFIG.northOffset}°`
                 );
             }
             
-            // Пересоздаём панораму с новым изображением
+            // Пересоздаём панораму
             if (viewer) {
                 viewer.destroy();
             }
             
             viewer = pannellum.viewer('panorama-container', {
                 "type": "equirectangular",
-                "panorama": toHistory ? CONFIG.historyUrl : CONFIG.todayUrl,
+                "panorama": isHistory ? CONFIG.historyUrl : CONFIG.todayUrl,
                 "autoLoad": true,
                 "northOffset": CONFIG.northOffset,
                 "horizonPitch": CONFIG.horizonPitch,
@@ -237,13 +276,45 @@
                 "pitch": 0,
                 "hfov": CONFIG.hfov,
                 "load": function() {
-                    console.log(`Panorama loaded: ${currentYear}`);
+                    console.log(`Panorama loaded: ${year}`);
                 },
                 "error": function(e) {
                     console.error('Panorama load error:', e);
                 }
             });
         }
+
+        // Переключатель dropdown
+        function toggleDropdown() {
+            const dropdown = document.getElementById('yearDropdown');
+            const button = document.getElementById('yearButton');
+            dropdown.classList.toggle('show');
+            button.classList.toggle('dropdown-open');
+        }
+
+        function selectYear(year) {
+            // Обновляем UI
+            document.querySelectorAll('.year-option').forEach(opt => {
+                opt.classList.toggle('active', parseInt(opt.dataset.year) === year);
+            });
+            document.getElementById('yearButton').textContent = year;
+            
+            // Закрываем dropdown
+            document.getElementById('yearDropdown').classList.remove('show');
+            document.getElementById('yearButton').classList.remove('dropdown-open');
+            
+            // Переключаем панораму
+            switchPanorama(year);
+        }
+
+        // Закрытие dropdown при клике вне
+        document.addEventListener('click', function(e) {
+            const selector = document.querySelector('.year-selector');
+            if (!selector.contains(e.target)) {
+                document.getElementById('yearDropdown').classList.remove('show');
+                document.getElementById('yearButton').classList.remove('dropdown-open');
+            }
+        });
 
         // Инициализация карты
         ymaps.ready(function(){
@@ -256,7 +327,10 @@
                     controls: ['zoomControl', 'fullscreenControl']
                 });
                 
-                console.log('Map created:', myMap);
+                console.log('Map created');
+
+                const iconUrl = getIconSvg(CONFIG.northOffset);
+                console.log('Icon URL created');
 
                 panoramaPlacemark = new ymaps.Placemark(CONFIG.coords, {
                     hintContent: CONFIG.markerTitle,
@@ -264,12 +338,12 @@
                     balloonContentBody: `Дворцовая площадь, ${currentYear} год<br>Направление: ${CONFIG.northOffset}°`
                 }, {
                     iconLayout: 'default#image',
-                    iconImageHref: createIconSvg(CONFIG.northOffset),
+                    iconImageHref: iconUrl,
                     iconImageSize: [64, 64],
                     iconImageOffset: [-32, -32]
                 });
 
-                console.log('Placemark created:', panoramaPlacemark);
+                console.log('Placemark created');
                 myMap.geoObjects.add(panoramaPlacemark);
                 console.log('Placemark added to map');
 
@@ -285,14 +359,6 @@
                 
             } catch (e) {
                 console.error('Map initialization error:', e);
-            }
-        });
-
-        // Инициализация переключателя
-        document.getElementById('timeSlider').addEventListener('input', function(e) {
-            const toHistory = e.target.value == 0;
-            if (toHistory !== isHistorical) {
-                switchPanorama(toHistory);
             }
         });
 
