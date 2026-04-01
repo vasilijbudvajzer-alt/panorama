@@ -17,11 +17,16 @@
             flex-direction: column;
         }
 
-        #panorama-container {
+        #panorama-wrapper {
             width: 100%;
             height: 60vh;
-            background: #333;
             position: relative;
+        }
+
+        #panorama-container {
+            width: 100%;
+            height: 100%;
+            background: #333;
         }
 
         #map-container {
@@ -34,7 +39,7 @@
             height: 100% !important;
         }
 
-        /* Переключатель лет (стиль Яндекс.Панорам) */
+        /* Переключатель лет - теперь вне контейнера панорамы */
         .year-selector {
             position: absolute;
             top: 20px;
@@ -164,7 +169,7 @@
         }
 
         @media (max-width: 768px) {
-            #panorama-container, #map-container { height: 50vh; }
+            #panorama-wrapper, #map-container { height: 50vh; }
             .year-selector { top: 15px; right: 15px; }
             .year-glow { width: calc(100% + 15px); height: calc(100% + 15px); }
         }
@@ -172,8 +177,10 @@
 </head>
 <body>
 
-    <div id="panorama-container">
-        <!-- Переключатель лет -->
+    <div id="panorama-wrapper">
+        <div id="panorama-container"></div>
+        
+        <!-- Переключатель лет - вынесен за пределы контейнера панорамы -->
         <div class="year-selector">
             <div class="year-glow"></div>
             <button class="year-button" id="yearButton" onclick="toggleDropdown()">2026</button>
@@ -206,25 +213,22 @@
         let lastYaw = 0;
         let currentYear = 2026;
 
-        // Генерация SVG иконки как base64
+        // Генерация SVG иконки как base64 - исправленная версия
         function getIconSvg(direction) {
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-                <path d="M 32 32 L 32 8 A 24 24 0 0 1 52.78 20 Z" 
-                      fill="rgba(128, 128, 128, 0.4)" 
-                      stroke="rgba(128, 128, 128, 0.6)" 
-                      stroke-width="1"
-                      transform="rotate(${direction}, 32, 32)"/>
-                <g transform="rotate(${direction}, 32, 32)">
-                    <circle cx="26" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
-                    <circle cx="26" cy="32" r="4" fill="white"/>
-                    <circle cx="38" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/>
-                    <circle cx="38" cy="32" r="4" fill="white"/>
-                    <rect x="26" y="30" width="12" height="4" fill="#2D8CFF"/>
-                </g>
-                <circle cx="32" cy="32" r="3" fill="#2D8CFF" stroke="white" stroke-width="1.5"/>
-            </svg>`;
+            // Убираем лишние пробелы и переводы строк для корректного base64
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M 32 32 L 32 8 A 24 24 0 0 1 52.78 20 Z" fill="rgba(128, 128, 128, 0.4)" stroke="rgba(128, 128, 128, 0.6)" stroke-width="1" transform="rotate(${direction}, 32, 32)"/><g transform="rotate(${direction}, 32, 32)"><circle cx="26" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/><circle cx="26" cy="32" r="4" fill="white"/><circle cx="38" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/><circle cx="38" cy="32" r="4" fill="white"/><rect x="26" y="30" width="12" height="4" fill="#2D8CFF"/></g><circle cx="32" cy="32" r="3" fill="#2D8CFF" stroke="white" stroke-width="1.5"/></svg>`;
             
-            return 'image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+            // Используем современный способ кодирования
+            try {
+                const encoded = typeof window !== 'undefined' && window.btoa 
+                    ? window.btoa(svg) 
+                    : Buffer.from(svg).toString('base64');
+                return 'data:image/svg+xml;base64,' + encoded;
+            } catch (e) {
+                console.error('Base64 encoding failed:', e);
+                // Fallback: возвращаем data URL с SVG напрямую
+                return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+            }
         }
 
         // Обновление поворота метки
@@ -234,18 +238,22 @@
                 return;
             }
             
-            const currentYaw = viewer.getYaw();
-            
-            if (Math.abs(currentYaw - lastYaw) > 2) {
-                lastYaw = currentYaw;
-                const totalRotation = currentYaw + CONFIG.northOffset;
-                panoramaPlacemark.options.set('iconImageHref', getIconSvg(totalRotation));
+            try {
+                const currentYaw = viewer.getYaw();
+                
+                if (Math.abs(currentYaw - lastYaw) > 2) {
+                    lastYaw = currentYaw;
+                    const totalRotation = currentYaw + CONFIG.northOffset;
+                    panoramaPlacemark.options.set('iconImageHref', getIconSvg(totalRotation));
+                }
+            } catch (e) {
+                console.error('Error updating marker rotation:', e);
             }
             
             setTimeout(updateMarkerRotation, 150);
         }
 
-        // Переключение панорамы
+        // Переключение панорамы - исправленная версия без destroy()
         function switchPanorama(year) {
             currentYear = year;
             const isHistory = year === 1904;
@@ -257,14 +265,40 @@
                 );
             }
             
-            // Пересоздаём панораму
+            // Вместо destroy() используем loadScene или пересоздаем viewer правильно
             if (viewer) {
-                viewer.destroy();
+                try {
+                    // Пробуем сменить панораму динамически
+                    viewer.loadScene({
+                        "type": "equirectangular",
+                        "panorama": isHistory ? CONFIG.historyUrl : CONFIG.todayUrl,
+                        "autoLoad": true,
+                        "northOffset": CONFIG.northOffset,
+                        "horizonPitch": CONFIG.horizonPitch,
+                        "compass": true,
+                        "showZoomCtrl": true,
+                        "showFullscreenCtrl": true,
+                        "title": CONFIG.markerTitle,
+                        "yaw": 0,
+                        "pitch": 0,
+                        "hfov": CONFIG.hfov
+                    });
+                } catch (e) {
+                    console.log('loadScene failed, recreating viewer:', e);
+                    // Если не получилось, пересоздаем
+                    viewer.destroy();
+                    createViewer(isHistory ? CONFIG.historyUrl : CONFIG.todayUrl);
+                }
+            } else {
+                createViewer(isHistory ? CONFIG.historyUrl : CONFIG.todayUrl);
             }
-            
+        }
+
+        // Создание viewer
+        function createViewer(panoramaUrl) {
             viewer = pannellum.viewer('panorama-container', {
                 "type": "equirectangular",
-                "panorama": isHistory ? CONFIG.historyUrl : CONFIG.todayUrl,
+                "panorama": panoramaUrl,
                 "autoLoad": true,
                 "northOffset": CONFIG.northOffset,
                 "horizonPitch": CONFIG.horizonPitch,
@@ -276,7 +310,7 @@
                 "pitch": 0,
                 "hfov": CONFIG.hfov,
                 "load": function() {
-                    console.log(`Panorama loaded: ${year}`);
+                    console.log(`Panorama loaded: ${currentYear}`);
                 },
                 "error": function(e) {
                     console.error('Panorama load error:', e);
@@ -307,9 +341,12 @@
             switchPanorama(year);
         }
 
-        // Закрытие dropdown при клике вне
+        // Закрытие dropdown при клике вне - исправленная версия с проверкой
         document.addEventListener('click', function(e) {
             const selector = document.querySelector('.year-selector');
+            // Проверяем, что элемент существует
+            if (!selector) return;
+            
             if (!selector.contains(e.target)) {
                 document.getElementById('yearDropdown').classList.remove('show');
                 document.getElementById('yearButton').classList.remove('dropdown-open');
@@ -330,7 +367,7 @@
                 console.log('Map created');
 
                 const iconUrl = getIconSvg(CONFIG.northOffset);
-                console.log('Icon URL created');
+                console.log('Icon URL:', iconUrl.substring(0, 50) + '...');
 
                 panoramaPlacemark = new ymaps.Placemark(CONFIG.coords, {
                     hintContent: CONFIG.markerTitle,
@@ -363,27 +400,10 @@
         });
 
         // Инициализация панорамы (по умолчанию современная)
-        viewer = pannellum.viewer('panorama-container', {
-            "type": "equirectangular",
-            "panorama": CONFIG.todayUrl,
-            "autoLoad": true,
-            "northOffset": CONFIG.northOffset,
-            "horizonPitch": CONFIG.horizonPitch,
-            "compass": true,
-            "showZoomCtrl": true,
-            "showFullscreenCtrl": true,
-            "title": CONFIG.markerTitle,
-            "yaw": 0,
-            "pitch": 0,
-            "hfov": CONFIG.hfov,
-            "load": function() {
-                console.log('Initial panorama loaded (2026)');
-                setTimeout(updateMarkerRotation, 500);
-            },
-            "error": function(e) {
-                console.error('Panorama load error:', e);
-            }
-        });
+        createViewer(CONFIG.todayUrl);
+        
+        // Запускаем обновление поворота метки
+        setTimeout(updateMarkerRotation, 500);
     </script>
 </body>
 </html>
