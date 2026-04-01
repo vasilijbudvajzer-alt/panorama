@@ -39,7 +39,7 @@
             height: 100% !important;
         }
 
-        /* Переключатель лет - теперь вне контейнера панорамы */
+        /* Переключатель лет */
         .year-selector {
             position: absolute;
             top: 20px;
@@ -180,7 +180,7 @@
     <div id="panorama-wrapper">
         <div id="panorama-container"></div>
         
-        <!-- Переключатель лет - вынесен за пределы контейнера панорамы -->
+        <!-- Переключатель лет -->
         <div class="year-selector">
             <div class="year-glow"></div>
             <button class="year-button" id="yearButton" onclick="toggleDropdown()">2026</button>
@@ -213,20 +213,15 @@
         let lastYaw = 0;
         let currentYear = 2026;
 
-        // Генерация SVG иконки как base64 - исправленная версия
+        // Генерация SVG иконки как base64
         function getIconSvg(direction) {
-            // Убираем лишние пробелы и переводы строк для корректного base64
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M 32 32 L 32 8 A 24 24 0 0 1 52.78 20 Z" fill="rgba(128, 128, 128, 0.4)" stroke="rgba(128, 128, 128, 0.6)" stroke-width="1" transform="rotate(${direction}, 32, 32)"/><g transform="rotate(${direction}, 32, 32)"><circle cx="26" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/><circle cx="26" cy="32" r="4" fill="white"/><circle cx="38" cy="32" r="9" fill="#2D8CFF" stroke="white" stroke-width="2"/><circle cx="38" cy="32" r="4" fill="white"/><rect x="26" y="30" width="12" height="4" fill="#2D8CFF"/></g><circle cx="32" cy="32" r="3" fill="#2D8CFF" stroke="white" stroke-width="1.5"/></svg>`;
             
-            // Используем современный способ кодирования
             try {
-                const encoded = typeof window !== 'undefined' && window.btoa 
-                    ? window.btoa(svg) 
-                    : Buffer.from(svg).toString('base64');
+                const encoded = window.btoa(svg);
                 return 'data:image/svg+xml;base64,' + encoded;
             } catch (e) {
                 console.error('Base64 encoding failed:', e);
-                // Fallback: возвращаем data URL с SVG напрямую
                 return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
             }
         }
@@ -253,50 +248,9 @@
             setTimeout(updateMarkerRotation, 150);
         }
 
-        // Переключение панорамы - исправленная версия без destroy()
-        function switchPanorama(year) {
-            currentYear = year;
-            const isHistory = year === 1904;
-            
-            // Обновляем балун метки
-            if (panoramaPlacemark) {
-                panoramaPlacemark.properties.set('balloonContentBody', 
-                    `Дворцовая площадь, ${year} год<br>Направление: ${CONFIG.northOffset}°`
-                );
-            }
-            
-            // Вместо destroy() используем loadScene или пересоздаем viewer правильно
-            if (viewer) {
-                try {
-                    // Пробуем сменить панораму динамически
-                    viewer.loadScene({
-                        "type": "equirectangular",
-                        "panorama": isHistory ? CONFIG.historyUrl : CONFIG.todayUrl,
-                        "autoLoad": true,
-                        "northOffset": CONFIG.northOffset,
-                        "horizonPitch": CONFIG.horizonPitch,
-                        "compass": true,
-                        "showZoomCtrl": true,
-                        "showFullscreenCtrl": true,
-                        "title": CONFIG.markerTitle,
-                        "yaw": 0,
-                        "pitch": 0,
-                        "hfov": CONFIG.hfov
-                    });
-                } catch (e) {
-                    console.log('loadScene failed, recreating viewer:', e);
-                    // Если не получилось, пересоздаем
-                    viewer.destroy();
-                    createViewer(isHistory ? CONFIG.historyUrl : CONFIG.todayUrl);
-                }
-            } else {
-                createViewer(isHistory ? CONFIG.historyUrl : CONFIG.todayUrl);
-            }
-        }
-
-        // Создание viewer
-        function createViewer(panoramaUrl) {
-            viewer = pannellum.viewer('panorama-container', {
+        // Создание конфигурации панорамы
+        function getPanoramaConfig(panoramaUrl) {
+            return {
                 "type": "equirectangular",
                 "panorama": panoramaUrl,
                 "autoLoad": true,
@@ -308,14 +262,46 @@
                 "title": CONFIG.markerTitle,
                 "yaw": 0,
                 "pitch": 0,
-                "hfov": CONFIG.hfov,
-                "load": function() {
-                    console.log(`Panorama loaded: ${currentYear}`);
-                },
-                "error": function(e) {
-                    console.error('Panorama load error:', e);
-                }
-            });
+                "hfov": CONFIG.hfov
+            };
+        }
+
+        // Переключение панорамы - правильная реализация
+        function switchPanorama(year) {
+            currentYear = year;
+            const isHistory = year === 1904;
+            const newUrl = isHistory ? CONFIG.historyUrl : CONFIG.todayUrl;
+            
+            // Обновляем балун метки
+            if (panoramaPlacemark) {
+                panoramaPlacemark.properties.set('balloonContentBody', 
+                    `Дворцовая площадь, ${year} год<br>Направление: ${CONFIG.northOffset}°`
+                );
+            }
+            
+            // Правильный способ смены панорамы в Pannellum
+            if (viewer) {
+                // Сохраняем текущий yaw для плавности
+                const currentYaw = viewer.getYaw();
+                const currentPitch = viewer.getPitch();
+                
+                // Уничтожаем старый viewer
+                viewer.destroy();
+                
+                // Создаём новый с новой панорамой, сохраняя позицию просмотра
+                viewer = pannellum.viewer('panorama-container', {
+                    ...getPanoramaConfig(newUrl),
+                    "yaw": currentYaw,
+                    "pitch": currentPitch
+                });
+            } else {
+                createViewer(newUrl);
+            }
+        }
+
+        // Создание viewer
+        function createViewer(panoramaUrl) {
+            viewer = pannellum.viewer('panorama-container', getPanoramaConfig(panoramaUrl));
         }
 
         // Переключатель dropdown
@@ -341,10 +327,9 @@
             switchPanorama(year);
         }
 
-        // Закрытие dropdown при клике вне - исправленная версия с проверкой
+        // Закрытие dropdown при клике вне
         document.addEventListener('click', function(e) {
             const selector = document.querySelector('.year-selector');
-            // Проверяем, что элемент существует
             if (!selector) return;
             
             if (!selector.contains(e.target)) {
@@ -367,7 +352,7 @@
                 console.log('Map created');
 
                 const iconUrl = getIconSvg(CONFIG.northOffset);
-                console.log('Icon URL:', iconUrl.substring(0, 50) + '...');
+                console.log('Icon URL created');
 
                 panoramaPlacemark = new ymaps.Placemark(CONFIG.coords, {
                     hintContent: CONFIG.markerTitle,
@@ -399,7 +384,7 @@
             }
         });
 
-        // Инициализация панорамы (по умолчанию современная)
+        // Инициализация панорамы (по умолчанию современная - 2026)
         createViewer(CONFIG.todayUrl);
         
         // Запускаем обновление поворота метки
