@@ -60,7 +60,7 @@
         let panoramaPlacemark = null;
         let lastYaw = 0;
 
-        // Генерация SVG иконки
+        // Генерация SVG иконки (бинокль + сектор)
         function createIconSvg(direction) {
             const svg = `
                 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
@@ -82,20 +82,18 @@
             return 'image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
         }
 
-        // Обновление поворота метки
+        // Обновление поворота метки при вращении панорамы
         function updateMarkerRotation() {
             if (!viewer || !panoramaPlacemark) return;
             
             const currentYaw = viewer.getYaw();
             
-            // Обновляем только если угол изменился значительно
             if (Math.abs(currentYaw - lastYaw) > 2) {
                 lastYaw = currentYaw;
                 const totalRotation = currentYaw + CONFIG.northOffset;
                 panoramaPlacemark.options.set('iconImageHref', createIconSvg(totalRotation));
             }
             
-            // Продолжаем мониторинг
             setTimeout(updateMarkerRotation, 150);
         }
 
@@ -107,11 +105,10 @@
                 controls: ['zoomControl', 'fullscreenControl']
             });
 
-            // Создаем метку
             panoramaPlacemark = new ymaps.Placemark(CONFIG.coords, {
                 hintContent: CONFIG.markerTitle,
                 balloonContentHeader: CONFIG.markerTitle,
-                balloonContentBody: `Направление: ${CONFIG.northOffset}°<br>Угол обзора: ${CONFIG.hfov}°`
+                balloonContentBody: `Направление: ${CONFIG.northOffset}°<br>Угол обзора: ${CONFIG.hfov}°<br><small>Сектор поворачивается при просмотре</small>`
             }, {
                 iconLayout: 'default#image',
                 iconImageHref: createIconSvg(CONFIG.northOffset),
@@ -122,12 +119,10 @@
 
             myMap.geoObjects.add(panoramaPlacemark);
 
-            // Клик по метке
             panoramaPlacemark.events.add('click', function() {
                 if (!myMap.balloon.isOpen()) panoramaPlacemark.balloon.open();
             });
 
-            // Умный зум
             myMap.behaviors.disable('scrollZoom');
             myMap.events.add('mouseenter', () => myMap.behaviors.enable('scrollZoom'));
             myMap.events.add('mouseleave', () => myMap.behaviors.disable('scrollZoom'));
@@ -147,7 +142,6 @@
             "yaw": 0,
             "pitch": 0,
             "hfov": CONFIG.hfov,
-            // Запускаем синхронизацию после загрузки
             "load": function() {
                 setTimeout(updateMarkerRotation, 500);
             }
