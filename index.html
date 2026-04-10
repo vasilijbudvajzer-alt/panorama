@@ -5,14 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Дворцовая площадь 1904 — 2026</title>
     
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📍</text></svg>">
-    
-    <!-- Pannellum updated to 2.5.11 -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.11/build/pannellum.css"/>
-    
-    <!-- Leaflet CSS for OpenStreetMap -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
     
     <style>
         body, html {
@@ -190,19 +183,18 @@
         <!-- Переключатель лет -->
         <div class="year-selector">
             <div class="year-glow"></div>
-            <button class="year-button" id="yearButton">2026</button>
+            <button class="year-button" id="yearButton" onclick="toggleDropdown()">2026</button>
             <div class="year-dropdown" id="yearDropdown">
-                <div class="year-option active" data-year="2026">2026</div>
-                <div class="year-option" data-year="1904">1904</div>
+                <div class="year-option active" data-year="2026" onclick="selectYear(2026)">2026</div>
+                <div class="year-option" data-year="1904" onclick="selectYear(1904)">1904</div>
             </div>
         </div>
     </div>
     
     <div id="map-container"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.11/build/pannellum.js"></script>
-    <!-- Leaflet JS for OpenStreetMap -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+    <script src="https://api-maps.yandex.ru/2.1/?apikey=84244e44-246b-436a-ab06-6c6485221085&lang=ru_RU" type="text/javascript"></script>
 
     <script>
         const CONFIG = {
@@ -216,7 +208,7 @@
         };
 
         let viewer = null;
-        let mapMarker = null;
+        let panoramaPlacemark = null;
         let myMap = null;
         let lastYaw = 0;
         let currentYear = 2026;
@@ -234,9 +226,9 @@
             }
         }
 
-        // Обновление поворота метки на карте
+        // Обновление поворота метки
         function updateMarkerRotation() {
-            if (!viewer || !mapMarker) {
+            if (!viewer || !panoramaPlacemark) {
                 setTimeout(updateMarkerRotation, 150);
                 return;
             }
@@ -247,15 +239,7 @@
                 if (Math.abs(currentYaw - lastYaw) > 2) {
                     lastYaw = currentYaw;
                     const totalRotation = currentYaw + CONFIG.northOffset;
-                    const iconUrl = getIconSvg(totalRotation);
-                    
-                    // Обновляем иконку маркера Leaflet
-                    mapMarker.setIcon(L.divIcon({
-                        html: `<img src="${iconUrl}" style="width: 64px; height: 64px;" />`,
-                        className: 'custom-marker',
-                        iconSize: [64, 64],
-                        iconAnchor: [32, 32]
-                    }));
+                    panoramaPlacemark.options.set('iconImageHref', getIconSvg(totalRotation));
                 }
             } catch (e) {
                 console.error('Error updating marker rotation:', e);
@@ -264,7 +248,7 @@
             setTimeout(updateMarkerRotation, 150);
         }
 
-        // Создание конфигурации панорамы с обработкой ошибок
+        // Создание конфигурации панорамы
         function getPanoramaConfig(panoramaUrl) {
             return {
                 "type": "equirectangular",
@@ -278,35 +262,21 @@
                 "title": CONFIG.markerTitle,
                 "yaw": 0,
                 "pitch": 0,
-                "hfov": CONFIG.hfov,
-                "onLoad": function() {
-                    console.log('Панорама успешно загружена:', panoramaUrl);
-                },
-                "error": function(error) {
-                    console.error('Ошибка загрузки панорамы:', error);
-                    const container = document.getElementById('panorama-container');
-                    container.innerHTML = `
-                        <div style="display:flex;align-items:center;justify-content:center;height:100%;background:#333;color:white;text-align:center;padding:20px;">
-                            <div>
-                                <h3>Ошибка загрузки панорамы</h3>
-                                <p>Не удалось загрузить изображение: ${panoramaUrl}</p>
-                                <p>Проверьте, что файл существует и имеет корректный формат (equirectangular JPG).</p>
-                            </div>
-                        </div>
-                    `;
-                }
+                "hfov": CONFIG.hfov
             };
         }
 
-        // Переключение панорамы - правильная реализация с обработкой ошибок
+        // Переключение панорамы - правильная реализация
         function switchPanorama(year) {
             currentYear = year;
             const isHistory = year === 1904;
             const newUrl = isHistory ? CONFIG.historyUrl : CONFIG.todayUrl;
             
-            // Обновляем содержимое popup маркера
-            if (mapMarker) {
-                mapMarker.setPopupContent(`Дворцовая площадь, ${year} год<br>Направление: ${CONFIG.northOffset}°`);
+            // Обновляем балун метки
+            if (panoramaPlacemark) {
+                panoramaPlacemark.properties.set('balloonContentBody', 
+                    `Дворцовая площадь, ${year} год<br>Направление: ${CONFIG.northOffset}°`
+                );
             }
             
             // Правильный способ смены панорамы в Pannellum
@@ -315,107 +285,31 @@
                 const currentYaw = viewer.getYaw();
                 const currentPitch = viewer.getPitch();
                 
-                try {
-                    // Уничтожаем старый viewer
-                    viewer.destroy();
-                    
-                    // Создаём новый с новой панорамой, сохраняя позицию просмотра
-                    viewer = pannellum.viewer('panorama-container', {
-                        ...getPanoramaConfig(newUrl),
-                        "yaw": currentYaw,
-                        "pitch": currentPitch
-                    });
-                } catch (e) {
-                    console.error('Ошибка при переключении панорамы:', e);
-                }
+                // Уничтожаем старый viewer
+                viewer.destroy();
+                
+                // Создаём новый с новой панорамой, сохраняя позицию просмотра
+                viewer = pannellum.viewer('panorama-container', {
+                    ...getPanoramaConfig(newUrl),
+                    "yaw": currentYaw,
+                    "pitch": currentPitch
+                });
             } else {
                 createViewer(newUrl);
             }
         }
 
-        // Создание viewer с обработкой ошибок и проверкой существования файла
+        // Создание viewer
         function createViewer(panoramaUrl) {
-            const container = document.getElementById('panorama-container');
-            
-            // Очищаем контейнер перед созданием
-            container.innerHTML = '';
-            
-            // Проверяем существование файла перед инициализацией
-            const img = new Image();
-            img.onload = function() {
-                console.log('Изображение загружено успешно:', panoramaUrl, 'Размеры:', img.width, 'x', img.height);
-                try {
-                    // Небольшая задержка чтобы убедиться что изображение полностью готово
-                    setTimeout(function() {
-                        viewer = pannellum.viewer('panorama-container', getPanoramaConfig(panoramaUrl));
-                        console.log('Viewer успешно создан для:', panoramaUrl);
-                    }, 100);
-                } catch (e) {
-                    console.error('Ошибка создания viewer:', e);
-                    container.innerHTML = `
-                        <div style="display:flex;align-items:center;justify-content:center;height:100%;background:#333;color:white;text-align:center;padding:20px;">
-                            <div>
-                                <h3>Ошибка инициализации</h3>
-                                <p>Не удалось инициализировать просмотрщик панорам.</p>
-                                <p style="font-size:12px;color:#aaa;">${e.message}</p>
-                            </div>
-                        </div>
-                    `;
-                }
-            };
-            
-            img.onerror = function(e) {
-                console.error('Файл панорамы не найден:', panoramaUrl, e);
-                container.innerHTML = `
-                    <div style="display:flex;align-items:center;justify-content:center;height:100%;background:#333;color:white;text-align:center;padding:20px;">
-                        <div>
-                            <h3>⚠️ Файл не найден</h3>
-                            <p>Изображение <b>${panoramaUrl}</b> не найдено.</p>
-                            <p style="font-size:12px;color:#aaa;">Положите файлы <b>today.jpg</b> и <b>history.jpg</b> в папку с сайтом.</p>
-                            <div style="margin-top:15px;padding:10px;background:#444;border-radius:5px;">
-                                <p style="font-size:11px;margin:0;">Проверьте консоль браузера для деталей.</p>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            };
-            
-            console.log('Начало загрузки изображения:', panoramaUrl);
-            img.crossOrigin = 'anonymous';
-            img.src = panoramaUrl + '?t=' + Date.now(); // Добавляем timestamp для обхода кэша
+            viewer = pannellum.viewer('panorama-container', getPanoramaConfig(panoramaUrl));
         }
 
-        // Обработчики событий для dropdown (вместо inline onclick)
-        function initEventListeners() {
-            const yearButton = document.getElementById('yearButton');
-            const yearDropdown = document.getElementById('yearDropdown');
-            const yearOptions = document.querySelectorAll('.year-option');
-            
-            // Клик по кнопке года
-            if (yearButton) {
-                yearButton.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    yearDropdown.classList.toggle('show');
-                    yearButton.classList.toggle('dropdown-open');
-                });
-            }
-            
-            // Клик по опциям года
-            yearOptions.forEach(option => {
-                option.addEventListener('click', function() {
-                    const year = parseInt(this.dataset.year);
-                    selectYear(year);
-                });
-            });
-            
-            // Закрытие dropdown при клике вне
-            document.addEventListener('click', function(e) {
-                const selector = document.querySelector('.year-selector');
-                if (selector && !selector.contains(e.target)) {
-                    yearDropdown.classList.remove('show');
-                    yearButton.classList.remove('dropdown-open');
-                }
-            });
+        // Переключатель dropdown
+        function toggleDropdown() {
+            const dropdown = document.getElementById('yearDropdown');
+            const button = document.getElementById('yearButton');
+            dropdown.classList.toggle('show');
+            button.classList.toggle('dropdown-open');
         }
 
         function selectYear(year) {
@@ -433,81 +327,68 @@
             switchPanorama(year);
         }
 
-        // Инициализация карты Leaflet + OpenStreetMap
-        function initMap() {
-            console.log('Initializing Leaflet map with OpenStreetMap');
+        // Закрытие dropdown при клике вне
+        document.addEventListener('click', function(e) {
+            const selector = document.querySelector('.year-selector');
+            if (!selector) return;
+            
+            if (!selector.contains(e.target)) {
+                document.getElementById('yearDropdown').classList.remove('show');
+                document.getElementById('yearButton').classList.remove('dropdown-open');
+            }
+        });
+
+        // Инициализация карты
+        ymaps.ready(function(){
+            console.log('Yandex Maps API loaded');
             
             try {
-                // Создаем карту
-                myMap = L.map('map-container', {
+                myMap = new ymaps.Map("map-container", {
                     center: CONFIG.coords,
                     zoom: 17,
-                    zoomControl: true,
-                    fullscreenControl: true
+                    controls: ['zoomControl', 'fullscreenControl']
                 });
-                
-                // Добавляем слой OpenStreetMap
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-                    maxZoom: 19
-                }).addTo(myMap);
                 
                 console.log('Map created');
 
-                // Создаем начальную иконку
                 const iconUrl = getIconSvg(CONFIG.northOffset);
                 console.log('Icon URL created');
 
-                // Создаем кастомную иконку с сектором обзора
-                const customIcon = L.divIcon({
-                    html: `<img src="${iconUrl}" style="width: 64px; height: 64px;" />`,
-                    className: 'custom-marker',
-                    iconSize: [64, 64],
-                    iconAnchor: [32, 32]
+                panoramaPlacemark = new ymaps.Placemark(CONFIG.coords, {
+                    hintContent: CONFIG.markerTitle,
+                    balloonContentHeader: CONFIG.markerTitle,
+                    balloonContentBody: `Дворцовая площадь, ${currentYear} год<br>Направление: ${CONFIG.northOffset}°`
+                }, {
+                    iconLayout: 'default#image',
+                    iconImageHref: iconUrl,
+                    iconImageSize: [64, 64],
+                    iconImageOffset: [-32, -32]
                 });
 
-                // Создаем маркер
-                mapMarker = L.marker(CONFIG.coords, {
-                    icon: customIcon
-                }).addTo(myMap);
+                console.log('Placemark created');
+                myMap.geoObjects.add(panoramaPlacemark);
+                console.log('Placemark added to map');
 
-                // Добавляем popup
-                mapMarker.bindPopup(`Дворцовая площадь, ${currentYear} год<br>Направление: ${CONFIG.northOffset}°`);
+                panoramaPlacemark.events.add('click', function() {
+                    if (!myMap.balloon.isOpen()) {
+                        panoramaPlacemark.balloon.open();
+                    }
+                });
 
-                console.log('Marker created and added to map');
-
-                // Отключаем зум колесом по умолчанию, включаем при наведении
-                myMap.scrollWheelZoom.disable();
-                myMap.on('mouseenter', () => myMap.scrollWheelZoom.enable());
-                myMap.on('mouseleave', () => myMap.scrollWheelZoom.disable());
+                myMap.behaviors.disable('scrollZoom');
+                myMap.events.add('mouseenter', () => myMap.behaviors.enable('scrollZoom'));
+                myMap.events.add('mouseleave', () => myMap.behaviors.disable('scrollZoom'));
                 
             } catch (e) {
                 console.error('Map initialization error:', e);
-                document.getElementById('map-container').innerHTML = `
-                    <div style="display:flex;align-items:center;justify-content:center;height:100%;background:#333;color:white;text-align:center;padding:20px;">
-                        <div>
-                            <h3>Ошибка загрузки карты</h3>
-                            <p>Не удалось загрузить карту OpenStreetMap.</p>
-                        </div>
-                    </div>
-                `;
             }
-        }
-
-        // Инициализация при загрузке страницы
-        document.addEventListener('DOMContentLoaded', function() {
-            // Инициализируем обработчики событий
-            initEventListeners();
-            
-            // Инициализация панорамы (по умолчанию современная - 2026)
-            createViewer(CONFIG.todayUrl);
-            
-            // Инициализация карты
-            initMap();
-            
-            // Запускаем обновление поворота метки
-            setTimeout(updateMarkerRotation, 500);
         });
+
+        // Инициализация панорамы (по умолчанию современная - 2026)
+        createViewer(CONFIG.todayUrl);
+        
+        // Запускаем обновление поворота метки
+        setTimeout(updateMarkerRotation, 500);
     </script>
 </body>
 </html>
