@@ -333,22 +333,56 @@
             }
         }
 
-        // Создание viewer с обработкой ошибок
+        // Создание viewer с обработкой ошибок и проверкой существования файла
         function createViewer(panoramaUrl) {
-            try {
-                viewer = pannellum.viewer('panorama-container', getPanoramaConfig(panoramaUrl));
-            } catch (e) {
-                console.error('Ошибка создания viewer:', e);
-                const container = document.getElementById('panorama-container');
+            const container = document.getElementById('panorama-container');
+            
+            // Очищаем контейнер перед созданием
+            container.innerHTML = '';
+            
+            // Проверяем существование файла перед инициализацией
+            const img = new Image();
+            img.onload = function() {
+                console.log('Изображение загружено успешно:', panoramaUrl, 'Размеры:', img.width, 'x', img.height);
+                try {
+                    // Небольшая задержка чтобы убедиться что изображение полностью готово
+                    setTimeout(function() {
+                        viewer = pannellum.viewer('panorama-container', getPanoramaConfig(panoramaUrl));
+                        console.log('Viewer успешно создан для:', panoramaUrl);
+                    }, 100);
+                } catch (e) {
+                    console.error('Ошибка создания viewer:', e);
+                    container.innerHTML = `
+                        <div style="display:flex;align-items:center;justify-content:center;height:100%;background:#333;color:white;text-align:center;padding:20px;">
+                            <div>
+                                <h3>Ошибка инициализации</h3>
+                                <p>Не удалось инициализировать просмотрщик панорам.</p>
+                                <p style="font-size:12px;color:#aaa;">${e.message}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+            };
+            
+            img.onerror = function(e) {
+                console.error('Файл панорамы не найден:', panoramaUrl, e);
                 container.innerHTML = `
                     <div style="display:flex;align-items:center;justify-content:center;height:100%;background:#333;color:white;text-align:center;padding:20px;">
                         <div>
-                            <h3>Ошибка инициализации</h3>
-                            <p>Не удалось инициализировать просмотрщик панорам.</p>
+                            <h3>⚠️ Файл не найден</h3>
+                            <p>Изображение <b>${panoramaUrl}</b> не найдено.</p>
+                            <p style="font-size:12px;color:#aaa;">Положите файлы <b>today.jpg</b> и <b>history.jpg</b> в папку с сайтом.</p>
+                            <div style="margin-top:15px;padding:10px;background:#444;border-radius:5px;">
+                                <p style="font-size:11px;margin:0;">Проверьте консоль браузера для деталей.</p>
+                            </div>
                         </div>
                     </div>
                 `;
-            }
+            };
+            
+            console.log('Начало загрузки изображения:', panoramaUrl);
+            img.crossOrigin = 'anonymous';
+            img.src = panoramaUrl + '?t=' + Date.now(); // Добавляем timestamp для обхода кэша
         }
 
         // Обработчики событий для dropdown (вместо inline onclick)
